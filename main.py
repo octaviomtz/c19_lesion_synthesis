@@ -21,9 +21,11 @@ option = a2.selectbox(
 c1, c2, c3, c4 = st.beta_columns((2, 1, 1, 1))
 
 path_img_temp = "images/output-images/mosaic-cat.png"
+path_img_temp2 = "images/output-images/candy-cat.png"
 image_temp = Image.open(path_img_temp)
+image_temp2 = Image.open(path_img_temp2)
 c1.title('c1')
-c1.image(image_temp)
+c1.image(image_temp2)
 c2.title('c2')
 c2.image(image_temp)
 c3.title('c3')
