@@ -1,1 +1,9 @@
-streamlit-drawable-canvas
+numpy==1.19.5
+matplotlib==3.2.2
+torch==1.9.0+cu102
+monai==0.6.0
+pytorch-ignite==0.4.5
+nibabel==3.0.2
+scikit-image==0.18.2
+tqdm==4.61.2
+#streamlit-drawable-canvas

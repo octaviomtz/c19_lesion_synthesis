@@ -86,7 +86,7 @@ def get_xforms_load(mode="load", keys=("image", "label")):
 #%% LOAD SYNTHETIC LESIONS AND ORIGINAL SCANS
 
 SCAN_NAME = 'volume-covid19-A-0014'
-SLICE= 34 #int(names_all[0].split('_lesion')[0].split('_')[-1]) #slices_lesion[len(slices_lesion)//2] # pick one slice with a lesion
+SLICE= 34 
 SKIP_LESIONS = 0
 ONLY_ONE_SLICE = 34
 GROW_ON_K_ITER = 1
