@@ -8,83 +8,101 @@ import streamlit as st
 from PIL import Image
 from utils_load import (
     load_synthetic_lesions_scans_and__individual_lesions,
-    superpixels_applied
+    superpixels_applied,
+    load_only_original_scans,
+    normalize_scan,
+    from_scan_to_3channel,
 )
 import numpy as np
 import matplotlib.pyplot as plt
 
-def normalize_scan(image, MIN_BOUND=-1000, MAX_BOUND=500):
-    image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
-    image[image>1] = 1.
-    image[image<0] = 0.
-    return image
+import pandas as pd
+from PIL import Image
+import streamlit as st
+from streamlit_drawable_canvas import st_canvas
 
-st.set_page_config(layout="wide")
-# import style
-# use https://github.com/andfanilo/streamlit-drawable-canvas
+## FUNCTIONS
 
-st.title('PyTorch Style Transfer')
 
+## ARGUMENTS
+SEED_VALUE = 1 
+TRESH_P = 20
+
+# st.set_page_config(layout="wide") 
+# # import style
+# # use https://github.com/andfanilo/streamlit-drawable-canvas
+
+st.title('C19 Lesion Synthesis')
 a1, a2 = st.beta_columns((1, 1))
+slice_selection = a1.selectbox(
+    'Select a slice',
+    (34, 17, 18, 19, 20, 21, 22, 30, 31, 32, 33, 34, 35, 36))
+scan_selection = a2.selectbox(
+    'Select a scan with lesions',
+    (14, 99))
 
-option = a2.selectbox(
-    'How would you like to be contacted?',
-    ('Email', 'Home phone', 'Mobile phone'))
 
-c1, c2, c3, c4 = st.beta_columns((2, 1, 1, 1))
+SCAN_NAME = f'volume-covid19-A-{scan_selection:04d}'
+ONLY_ONE_SLICE = slice_selection
 
-path_img_temp = "images/output-images/mosaic-cat.png"
-path_img_temp2 = "images/output-images/candy-cat.png"
-image_temp = Image.open(path_img_temp)
-image_temp2 = Image.open(path_img_temp2)
-c1.title('c1')
-c1.image(image_temp2)
-c2.title('c2')
-c2.image(image_temp)
-c3.title('c3')
-c3.image(image_temp)
-c4.title('c4')
-c4.image(image_temp2)
+c1, c2, c3, c4, _, _, _ = st.beta_columns((1, 1, 1, 1, 1, 1, 1))
+load_only_scans = c1.button('CT scans_only')
+load = c2.button('CT load')
+superpixels = c3.button('superpixels')
+test = st.button('test')
+
 
 img = st.sidebar.selectbox(
     'Select Image',
     ('scan.npy', 'scan.npy')#,'amber.jpg', 'cat.png')
 )
 
-style_name = st.sidebar.selectbox(
-    'Select Style',
-    ('candy', 'mosaic', 'rain_princess', 'udnie')
-)
-
-## ARGUMENTS
-SCAN_NAME = 'volume-covid19-A-0014'
-ONLY_ONE_SLICE = 34
-SEED_VALUE = 1 
-TRESH_P = 20
+# style_name = st.sidebar.selectbox(
+#     'Select Style',
+#     ('candy', 'mosaic', 'rain_princess', 'udnie')
+# )
 
 # model= "saved_models/" + style_name + ".pth"
-input_image = "images/content-images/" + img
-output_image = "images/output-images/" + style_name + "-" + img
+input_image = "images/content-images/" + img 
+# output_image = "images/output-images/" + style_name + "-" + img
 
-st.write('### Example scan:')
-image_scan = np.load(input_image)
-fig0 = plt.figure()
-plt.imshow(np.rot90(normalize_scan(image_scan[...,34]),-1), cmap='gray')
-plt.axis(False)
-st.pyplot(fig0, width=400) 
-
-load = st.button('CT load')
-superpixels = st.button('superpixels')
-test = st.button('test')
+# st.write('### Example scan:')
+# image_scan = np.load(input_image)
+# fig0 = plt.figure()
+# plt.imshow(np.rot90(normalize_scan(image_scan[...,34]),-1), cmap='gray')
+# plt.axis(False)
+# st.pyplot(fig0, width=400) 
 
 
 
+ 
+## To save the scan as an image
+# import imageio 
+# aaa = np.rot90(normalize_scan(np.load(input_image)[...,ONLY_ONE_SLICE]),-1)
+# aaa = np.repeat(np.expand_dims(aaa,-1),3,-1)
+# aaa = aaa.astype(np.uint8)
+# st.write(np.shape(aaa))
+# imageio.imwrite('images/content-images/aaa.png', aaa)
+# aaa.save('images/content-images/aaa.png')
+
+if load_only_scans:
+    scan, scan_mask = load_only_original_scans(SCAN_NAME)
+    st.session_state.scan = scan 
+    st.session_state.scan_mask = scan_mask
+
+    scan_plot = from_scan_to_3channel(scan, slice= ONLY_ONE_SLICE, normalize=True, rotate=-1)
+    # aa = normalize_scan(scan[...,ONLY_ONE_SLICE])
+    # aa = np.repeat(np.expand_dims(aa,-1),3,-1)
+    fig_only_scans = plt.figure()
+    plt.imshow(scan_plot)
+    # aa = (aa*255).astype(np.uint8)
+    # st.write(np.shape(aa), np.min(aa), np.max(aa))
+    st.pyplot(fig_only_scans)
 
 
 if load:
     scan, scan_mask, loader_lesions, texture = load_synthetic_lesions_scans_and__individual_lesions(SCAN_NAME)
-    st.session_state.scan = normalize_scan(scan)
-    
+    st.session_state.scan = normalize_scan(scan)    
     st.session_state.scan_mask = scan_mask
     st.session_state.loader_lesions = loader_lesions
     st.session_state.texture = texture
@@ -93,15 +111,18 @@ if load:
     st.write(f'scan_mask = {np.shape(scan_mask), np.min(scan_mask), np.max(scan_mask)}')
     st.write(type(loader_lesions))
     st.image(np.rot90(st.session_state.scan[...,ONLY_ONE_SLICE],-1))
+    
+    # np.save('images/scans/scan.npy', scan_mask)
+    # np.savez_compressed('images/scans/scan_mask.npz', scan_mask)
 
-if test:
-    st.write(type(loader_lesions))
+# if test:
+#     st.write(type(loader_lesions))
 
-if superpixels:
+if superpixels: 
     superpixels_args = superpixels_applied(st.session_state.loader_lesions, ONLY_ONE_SLICE, SEED_VALUE=1)
     print(len(superpixels_args)) 
     img_lesions, mask_slic, boundaries_plot, segments, segments_sizes, coords_big, idx_mini_batch, numSegments = superpixels_args
-
+    st.write(coords_big)
     scan = st.session_state.scan
     scan_mask = st.session_state.scan_mask
     
@@ -125,7 +146,10 @@ if superpixels:
     ct4.title('c4')
     fig4 = plt.figure()
     plt.imshow(np.rot90(boundaries_plot*mask_slic,-1), vmax=1, cmap='gray')
-    ct4.pyplot(fig4)
+    ct4.pyplot(fig4) 
+
+    st.write(coords_big)
+    # canvas_result.realtime_update = False
 
 # if clicked:
 #     #model = style.load_model(model)
@@ -134,3 +158,43 @@ if superpixels:
 #     st.write('### Output image:')
 #     image = Image.open(output_image)
 #     st.image(image, width=400)
+
+########## DRAWABLE
+
+# Specify canvas parameters in application
+stroke_width = st.sidebar.slider("Stroke width: ", 1, 25, 3)
+stroke_color = st.sidebar.color_picker("Stroke color hex: ")
+bg_color = st.sidebar.color_picker("Background color hex: ", "#eee")
+bg_image = st.sidebar.file_uploader("Background image:", type=["png", "jpg"])
+# drawing_mode = st.sidebar.selectbox(
+#     "Drawing tool:", ("freedraw", "line", "rect", "circle", "transform")
+# )
+realtime_update = st.sidebar.checkbox("Update in realtime", True)
+
+# Create a canvas component
+canvas_result = st_canvas(
+    fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
+    stroke_width=stroke_width,
+    stroke_color=stroke_color,
+    background_color=bg_color,
+    # background_image=Image.open(bg_image) if bg_image else None,
+    background_image=Image.open('images/content-images/scan_default.png'),
+    update_streamlit=realtime_update,
+    # height=450,
+    # drawing_mode=drawing_mode,
+    drawing_mode= 'rect', 
+    key="canvas",
+)
+
+# Do something interesting with the image data and paths
+# if canvas_result.image_data is not None:
+#     st.image(canvas_result.image_data)
+if canvas_result.json_data is not None:
+    if len(canvas_result.json_data["objects"]) == 2:
+        canvas_result.drawing_mode = 'transform'
+        canvas_result.json_data["objects"].pop(0)   
+    # st.write(canvas_result.json_data)
+    st.write(len(canvas_result.json_data["objects"])) 
+    st.write(type(canvas_result.json_data["objects"])) 
+    # st.write(canvas_result.json_data["objects"]) 
+    st.dataframe(pd.json_normalize(canvas_result.json_data["objects"]))

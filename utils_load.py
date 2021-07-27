@@ -131,6 +131,35 @@ def load_synthetic_lesions_scans_and__individual_lesions(SCAN_NAME, data_folder 
 
     return scan, scan_mask, loader_lesions, texture
 
+def load_only_original_scans(SCAN_NAME, data_folder = '/content/drive/MyDrive/Datasets/covid19/COVID-19-20_v2/Train', batch_size=1):
+    '''load only one components
+    - the original scans (and their masks)'''
+    images= [f'{data_folder}/{SCAN_NAME}_ct.nii.gz']
+    labels= [f'{data_folder}/{SCAN_NAME}_seg.nii.gz']
+    keys = ("image", "label")
+    files_scans = [{keys[0]: img, keys[1]: seg} for img, seg in zip(images, labels)]
+    # LOAD SCANS
+    transforms_load = get_xforms_scans_or_synthetic_lesions("scans", keys)
+    ds_scans = monai.data.CacheDataset(data=files_scans, transform=transforms_load)
+    loader_scans = monai.data.DataLoader(
+            ds_scans,
+            batch_size=batch_size,
+            shuffle=False, #should be true for training
+            num_workers=2,
+            pin_memory=torch.cuda.is_available(),
+        )
+
+    for idx_mini_batch, mini_batch in enumerate(loader_scans):
+        # if idx_mini_batch==1:break #OMM
+        BATCH_IDX=0
+        scan = mini_batch['image'][BATCH_IDX][0,...]
+        scan_mask = mini_batch['label'][BATCH_IDX][0,...]
+        scan_name = mini_batch['image_meta_dict']['filename_or_obj'][0].split('/')[-1].split('.nii')[0][:-3]
+    assert scan_name == SCAN_NAME, 'cannot load that scan'
+    scan = scan.numpy()   #ONLY READ ONE SCAN (WITH PREVIOUS BREAK)
+    scan_mask = scan_mask.numpy()
+    return scan, scan_mask
+
 def superpixels_applied(loader_lesions, ONLY_ONE_SLICE, TRESH_PLOT=20, SKIP_LESIONS=0, SEED_VALUE=1): 
     mask_sizes = []
     cluster_sizes = []
@@ -198,3 +227,30 @@ def superpixels_applied(loader_lesions, ONLY_ONE_SLICE, TRESH_PLOT=20, SKIP_LESI
         if flag_only_one_slice: break
     return  img, mask_slic, boundaries_plot, segments, segments_sizes, coords_big, idx_mini_batch, numSegments
         
+def from_scan_to_3channel(img, slice=34, normalize=True, rotate=0):
+    """
+    Transform from hounsfield units to a normalized (0-255)
+    image that streamlit can plot
+    Args:
+        img (numpy array): [description]
+        slice (int, optional): [description]. Defaults to 34.
+        normalize (bool, optional): [description]. Defaults to True.
+        rotate (int, optional): [description]. Defaults to 0.
+
+    Returns:
+        img [int]: Image ready to plot
+    """
+    if normalize:
+        img = normalize_scan(img[...,slice])
+    if rotate:
+        img = np.rot90(img,-1)
+    img = np.expand_dims(img,-1)
+    img = np.repeat(img,3,-1)
+    img = img.astype(np.uint8)
+    return img
+
+def normalize_scan(image, MIN_BOUND=-1000, MAX_BOUND=500):
+    image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
+    image[image>1] = 1.
+    image[image<0] = 0.
+    return image
