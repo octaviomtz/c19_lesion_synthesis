@@ -163,7 +163,7 @@ loader_lesions = monai.data.DataLoader(
         pin_memory=torch.cuda.is_available(),
     )
 
-# LOAD SYTHETIC INPAINTDE PSEUDO-HEALTHY TEXTURE
+# LOAD SYTHETIC INPAINTED PSEUDO-HEALTHY TEXTURE
 path_synthesis_old = '/content/drive/My Drive/Datasets/covid19/results/cea_synthesis/patient0/'
 texture_orig = np.load(f'{path_synthesis_old}texture.npy.npz')
 texture_orig = texture_orig.f.arr_0

@@ -7,6 +7,12 @@ from skimage.segmentation import slic
 from skimage.segmentation import mark_boundaries
 from scipy.ndimage import label
 from skimage.morphology import remove_small_holes, remove_small_objects
+from PIL import Image
+from scipy.ndimage.morphology import binary_erosion
+import matplotlib.pyplot as plt
+import streamlit as st
+from copy import copy
+from skimage.restoration import inpaint
 from monai.transforms import (
     LoadImaged,
     AddChanneld,
@@ -25,7 +31,14 @@ from utils import (
     make_list_of_targets_and_seeds,
     select_lesions_match_conditions2,
 )
-
+from utils_replace_lesions import (
+    read_cea_aug_slice2,
+    pseudo_healthy_with_texture,
+    get_decreasing_sequence,
+    get_orig_scan_in_lesion_coords,
+    make_mask_ring,
+    normalize_new_range4,
+)
 # FUNCTIONS
 def get_xforms_scans_or_synthetic_lesions(mode="scans", keys=("image", "label")):
     """returns a composed transform for scans or synthetic lesions."""
@@ -226,7 +239,33 @@ def superpixels_applied(loader_lesions, ONLY_ONE_SLICE, TRESH_PLOT=20, SKIP_LESI
         
         if flag_only_one_slice: break
     return  img, mask_slic, boundaries_plot, segments, segments_sizes, coords_big, idx_mini_batch, numSegments
-        
+
+def superpixels2(img, mask):
+    mask = remove_small_objects(mask, 20)
+    SCALAR_LIMIT_CLUSTER_SIZE = 200 #340
+    numSegments = np.max([np.sum(mask > 0)//SCALAR_LIMIT_CLUSTER_SIZE, 1]) # run slic with large segments to eliminate background & vessels
+    TRESH_BACK = 0.10 
+    THRES_VESSEL = 0.7 
+    print(numSegments)
+    if numSegments>1: # if mask is large then superpixels
+        SCALAR_SIZE2 = 300
+        numSegments = np.max([np.sum(mask > 0)//SCALAR_SIZE2, 4])
+        segments = slic((img/255).astype('double'), n_segments = numSegments, mask=mask, sigma = .2, multichannel=False, compactness=.1)
+        print(f'img={np.min(img),np.max(img)}')
+        print(f'segments={np.sum(segments)}, {np.unique(segments)}')
+        print(f'img={np.shape(img)}, mask={np.shape(mask)}')
+        background, lesion_area, vessels = superpixels((img).astype('double'), segments, background_threshold=TRESH_BACK, vessel_threshold=THRES_VESSEL)
+        mask_slic = lesion_area>0
+        boundaries = mark_boundaries(mask_slic*img, segments)[...,0]
+        # label_seg, nr_seg = label(segments)
+    else: # small lesion (use the original mask)
+        numSegments=-1
+        background, lesion_area, vessels = superpixels((img).astype('double'), mask, background_threshold=TRESH_BACK, vessel_threshold=THRES_VESSEL)
+        mask_slic = mask
+        boundaries = np.zeros_like(mask_slic)
+        segments = mask
+    return mask_slic, boundaries, segments
+
 def from_scan_to_3channel(img, slice=34, normalize=True, rotate=0):
     """
     Transform from hounsfield units to a normalized (0-255)
@@ -241,12 +280,25 @@ def from_scan_to_3channel(img, slice=34, normalize=True, rotate=0):
         img [int]: Image ready to plot
     """
     if normalize:
-        img = normalize_scan(img[...,slice])
+        img = normalize_scan(img)
     if rotate:
         img = np.rot90(img,-1)
     img = np.expand_dims(img,-1)
     img = np.repeat(img,3,-1)
     img = img.astype(np.uint8)
+    img = Image.fromarray(img)
+    return img
+
+def from_scan_to_3channel2(img, slice=34, normalize=True, rotate=0):
+    img = img[...,slice]
+    if normalize:
+        img = normalize_scan(img)
+    if rotate:
+        img = np.rot90(img,-1)
+    fig = plt.figure()
+    # plt.imshow(img)    
+    img = (img*255).astype(np.uint8)
+    img = Image.fromarray(img).convert('RGB')
     return img
 
 def normalize_scan(image, MIN_BOUND=-1000, MAX_BOUND=500):
@@ -254,3 +306,123 @@ def normalize_scan(image, MIN_BOUND=-1000, MAX_BOUND=500):
     image[image>1] = 1.
     image[image<0] = 0.
     return image
+
+def scale_rect_coords_and_compare_nodule_coords(scan, rect_coords, coords_nodule, CANVA_HEIGHT=400, CANVA_WIDTH=400, THRESH=10):
+    """
+    Scale the coords of the square entered by the user using the 
+    canva size and the shape of the original image
+    Args:
+        scan(numpy array): 2D scan
+        rect_coords(dict): coordinated entered by the user
+    Returns
+        coords_scales(list[float]): scales coordinated that match the location in the original dataset
+        dist_coords(float): euclidian distance between the coords
+        dist_coords_bool: True if dist_coords is smaller than THRESH
+    """
+    dist_coords_bool = False
+    coord_x1 = rect_coords.get('left'); 
+    coord_x2 = rect_coords.get('left') + rect_coords.get('width') 
+    coord_y1 = rect_coords.get('top'); 
+    coord_y2 =  rect_coords.get('top') + rect_coords.get('height')
+    canva_shape0, canva_shape1 = np.shape(scan)
+    scale_y = canva_shape0/CANVA_HEIGHT
+    scale_x = canva_shape1/CANVA_WIDTH
+    coords_scaled = coord_y1*scale_y, coord_y2*scale_y, coord_x1*scale_x, coord_x2*scale_x
+    # calculate euclidian distance
+    dist_coords = np.linalg.norm(np.asarray(coords_scaled)-np.asarray(coords_nodule))
+    if dist_coords < THRESH:
+        dist_coords_bool = True
+    return coords_scaled, dist_coords, dist_coords_bool
+
+def figures_zoom_and_superpixels(scan, mask, coords, boundaries, offset = 5):
+    '''
+    Create figure handles of the (1) whole scan, (2) zoom to lesion
+        and (3) zoom to lesion with superpixels boundaries included
+    Args:
+        scan(numpy array):
+        mask(numpy array[bool]):
+    Return:
+        Three Matplotlib figure handles
+    '''
+    y1, y2, x1, x2 = coords
+    y1, y2, x1, x2 = y1-offset, y2+offset, x1-offset, x2+offset
+    mask_eroded = binary_erosion(mask)
+    mask_boundary = mask - mask_eroded
+    fig_zoom1 = plt.figure()
+    plt.imshow(scan, cmap='gray')
+    plt.imshow(mask, cmap='flag_r', alpha=.3)
+    plt.axis('off')
+    fig_zoom2 = plt.figure()
+    plt.imshow(scan[y1: y2, x1: x2], cmap='gray')
+    # plt.imshow(mask_boundary[y1: y2, x1: x2], cmap='flag_r', alpha=.3)
+    plt.axis('off')
+    fig_zoom3 = plt.figure()
+    plt.imshow(scan[y1: y2, x1: x2], cmap='gray')
+    plt.imshow(boundaries[y1: y2, x1: x2], cmap='flag_r', alpha=.3)
+    plt.axis('off')
+    return fig_zoom1, fig_zoom2, fig_zoom3
+
+@st.cache(suppress_st_warning=True)
+def load_synthetic_texture(path_synthesis = '/content/drive/My Drive/Datasets/covid19/results/cea_synthesis/patient0/'):
+    texture_orig = np.load(f'{path_synthesis}texture.npy.npz')
+    texture_orig = texture_orig.f.arr_0
+    texture = texture_orig + np.abs(np.min(texture_orig))# + .07
+    return texture
+
+def replace_with_nCA(scan, SCAN_NAME, SLICE, texture, mask_outer_ring = False, POST_PROCESS = True, blur_lesion = False, TRESH_PLOT=10):
+    scan_slice = scan/255
+    path_parent = '/content/drive/My Drive/Datasets/covid19/COVID-19-20_augs_cea/'
+    path_synthesis_ = f'{path_parent}CeA_BASE_grow=1_bg=-1.00_step=-1.0_scale=-1.0_seed=1.0_ch0_1=-1_ch1_16=-1_ali_thr=0.1/'
+    path_synthesis = f'{path_synthesis_}{SCAN_NAME}/'
+    lesions_all, coords_all, masks_all, names_all, loss_all = read_cea_aug_slice2(path_synthesis, SLICE=SLICE)
+    V_MAX = np.max(scan_slice)
+    slice_healthy_inpain = pseudo_healthy_with_texture(scan_slice, lesions_all, coords_all, masks_all, names_all, texture)
+    decreasing_sequence = get_decreasing_sequence(255, splits= 20) 
+    arrays_sequence = []
+    images=[]
+    mse_gen = []
+    for GEN in decreasing_sequence:
+
+        slice_healthy_inpain2 = copy(slice_healthy_inpain)
+        synthetic_intensities=[]
+        mask_for_inpain = np.zeros_like(slice_healthy_inpain2)
+        mse_lesions = []
+        for idx_x, (lesion, coord, mask, name) in enumerate(zip(lesions_all, coords_all, masks_all, names_all)):
+            #get the right coordinates
+            coords_big2 = [int(i) for i in name.split('_')[1:5]]
+            coords_sums = coord + coords_big2
+            new_coords_mask = np.where(mask==1)[0]+coords_sums[0], np.where(mask==1)[1]+coords_sums[2]
+            if GEN<60:
+                if POST_PROCESS:
+                    syn_norm = normalize_new_range4(lesion[GEN], scan_slice[new_coords_mask], scale=.5)
+                else:
+                    syn_norm = lesion[GEN]
+            else:
+                syn_norm = lesion[GEN]
+            # get the MSE between synthetic and original
+            orig_lesion = get_orig_scan_in_lesion_coords(scan_slice, new_coords_mask)
+            mse_lesions.append(np.mean(mask*(syn_norm - orig_lesion)**2))
+
+            syn_norm = syn_norm * mask
+            if blur_lesion:
+                syn_norm = blur_masked_image(syn_norm, kernel_blur=(2,2))
+            # add cea syn with absolute coords
+            new_coords = np.where(syn_norm>0)[0]+coords_sums[0], np.where(syn_norm>0)[1]+coords_sums[2]
+            slice_healthy_inpain2[new_coords] = syn_norm[syn_norm>0]
+
+            synthetic_intensities.extend(syn_norm[syn_norm>0])
+
+            # inpaint the outer ring
+            if mask_outer_ring:
+                mask_ring = make_mask_ring(syn_norm>0)
+                new_coords_mask_inpain = np.where(mask_ring==1)[0]+coords_sums[0], np.where(mask_ring==1)[1]+coords_sums[2] # mask outer rings for inpaint
+                mask_for_inpain[new_coords_mask_inpain] = 1
+        
+        mse_gen.append(mse_lesions)
+        if mask_outer_ring:
+            slice_healthy_inpain2 = inpaint.inpaint_biharmonic(slice_healthy_inpain2, mask_for_inpain)
+
+        arrays_sequence.append(slice_healthy_inpain2[coords_big2[0]-TRESH_PLOT:coords_big2[1]+TRESH_PLOT,coords_big2[2]-TRESH_PLOT:coords_big2[3]+TRESH_PLOT])
+        images.append(slice_healthy_inpain2[coords_big2[0]-TRESH_PLOT:coords_big2[1]+TRESH_PLOT,coords_big2[2]-TRESH_PLOT:coords_big2[3]+TRESH_PLOT])
+
+    return arrays_sequence, images, decreasing_sequence

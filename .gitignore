@@ -3,3 +3,7 @@ __pycache__/
 *.ipynb
 ngrok*
 interactive/
+scans/
+interactive.py
+ngrok*
+images/output-images/*
