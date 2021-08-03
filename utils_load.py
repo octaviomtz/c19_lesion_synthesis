@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from copy import copy
 from skimage.restoration import inpaint
+import imageio
+import base64
 from monai.transforms import (
     LoadImaged,
     AddChanneld,
@@ -250,7 +252,7 @@ def superpixels2(img, mask):
     if numSegments>1: # if mask is large then superpixels
         SCALAR_SIZE2 = 300
         numSegments = np.max([np.sum(mask > 0)//SCALAR_SIZE2, 4])
-        segments = slic((img/255).astype('double'), n_segments = numSegments, mask=mask, sigma = .2, multichannel=False, compactness=.1)
+        segments = slic((img).astype('double'), n_segments = numSegments, mask=mask, sigma = .2, multichannel=False, compactness=.1)
         print(f'img={np.min(img),np.max(img)}')
         print(f'segments={np.sum(segments)}, {np.unique(segments)}')
         print(f'img={np.shape(img)}, mask={np.shape(mask)}')
@@ -289,16 +291,31 @@ def from_scan_to_3channel(img, slice=34, normalize=True, rotate=0):
     img = Image.fromarray(img)
     return img
 
-def from_scan_to_3channel2(img, slice=34, normalize=True, rotate=0):
-    img = img[...,slice]
-    if normalize:
+def original_slice_to_cannonical_view(img, normalize_scan_hounsfield = True, to_0_255=True, rotate=-1, fliplr=True):
+    """
+    Transform from hounsfield units to a normalized (0-255)
+    image that streamlit can plot
+    Args:
+        
+
+    Returns:
+        img [int]: Image ready to plot
+    """
+    if normalize_scan_hounsfield:
         img = normalize_scan(img)
+    if to_0_255:
+        img = img*255
     if rotate:
-        img = np.rot90(img,-1)
-    fig = plt.figure()
-    # plt.imshow(img)    
-    img = (img*255).astype(np.uint8)
-    img = Image.fromarray(img).convert('RGB')
+        img = np.rot90(img, rotate)
+    if fliplr:
+        img = np.fliplr(img)
+    return img
+
+def from_scan_to_3channel2(img):
+    img = np.expand_dims(img,-1)
+    img = np.repeat(img,3,-1)
+    img = img.astype(np.uint8)
+    img = Image.fromarray(img)
     return img
 
 def normalize_scan(image, MIN_BOUND=-1000, MAX_BOUND=500):
@@ -354,11 +371,9 @@ def figures_zoom_and_superpixels(scan, mask, coords, boundaries, offset = 5):
     plt.axis('off')
     fig_zoom2 = plt.figure()
     plt.imshow(scan[y1: y2, x1: x2], cmap='gray')
-    # plt.imshow(mask_boundary[y1: y2, x1: x2], cmap='flag_r', alpha=.3)
     plt.axis('off')
     fig_zoom3 = plt.figure()
-    plt.imshow(scan[y1: y2, x1: x2], cmap='gray')
-    plt.imshow(boundaries[y1: y2, x1: x2], cmap='flag_r', alpha=.3)
+    plt.imshow(boundaries, cmap='gray')
     plt.axis('off')
     return fig_zoom1, fig_zoom2, fig_zoom3
 
@@ -370,7 +385,7 @@ def load_synthetic_texture(path_synthesis = '/content/drive/My Drive/Datasets/co
     return texture
 
 def replace_with_nCA(scan, SCAN_NAME, SLICE, texture, mask_outer_ring = False, POST_PROCESS = True, blur_lesion = False, TRESH_PLOT=10):
-    scan_slice = scan/255
+    scan_slice = scan
     path_parent = '/content/drive/My Drive/Datasets/covid19/COVID-19-20_augs_cea/'
     path_synthesis_ = f'{path_parent}CeA_BASE_grow=1_bg=-1.00_step=-1.0_scale=-1.0_seed=1.0_ch0_1=-1_ch1_16=-1_ali_thr=0.1/'
     path_synthesis = f'{path_synthesis_}{SCAN_NAME}/'
@@ -422,7 +437,49 @@ def replace_with_nCA(scan, SCAN_NAME, SLICE, texture, mask_outer_ring = False, P
         if mask_outer_ring:
             slice_healthy_inpain2 = inpaint.inpaint_biharmonic(slice_healthy_inpain2, mask_for_inpain)
 
-        arrays_sequence.append(slice_healthy_inpain2[coords_big2[0]-TRESH_PLOT:coords_big2[1]+TRESH_PLOT,coords_big2[2]-TRESH_PLOT:coords_big2[3]+TRESH_PLOT])
-        images.append(slice_healthy_inpain2[coords_big2[0]-TRESH_PLOT:coords_big2[1]+TRESH_PLOT,coords_big2[2]-TRESH_PLOT:coords_big2[3]+TRESH_PLOT])
+        # arrays_sequence.append(slice_healthy_inpain2[coords_big2[0]-TRESH_PLOT:coords_big2[1]+TRESH_PLOT,coords_big2[2]-TRESH_PLOT:coords_big2[3]+TRESH_PLOT])
+        arrays_sequence.append(slice_healthy_inpain2)
+        # images.append(slice_healthy_inpain2[coords_big2[0]-TRESH_PLOT:coords_big2[1]+TRESH_PLOT,coords_big2[2]-TRESH_PLOT:coords_big2[3]+TRESH_PLOT])
+        # Create GIF
+        path_gifs = "images/for_gifs/"
+        scan_name_with_slice = f'{SCAN_NAME}_{SLICE}.gif'
+        if scan_name_with_slice not in os.listdir(path_gifs):
+            _ = fig_blend_lesion(slice_healthy_inpain2, coords_big2, GEN, decreasing_sequence, path_synthesis, len(lesion), file_path=f"{path_gifs}synthesis.png", Tp=30, V_MAX=V_MAX)
+            _ = images.append(imageio.imread(f"{path_gifs}synthesis.png")); #Adds images to list
+    if scan_name_with_slice not in os.listdir(path_gifs):
+        imageio.mimsave(f"{path_gifs}{SCAN_NAME}_{SLICE}.gif", images, fps=4) #Creates gif out of list of images
+        print('DOING GIF')
+    else:
+        print('GIF ALREADY DONE')
+    # _ = plt.close()
 
-    return arrays_sequence, images, decreasing_sequence
+    return arrays_sequence, decreasing_sequence
+
+def fig_blend_lesion(slice_healthy_inpain2, coords_big, GEN, decreasing_sequence, path_synthesis, len_lesion, file_path="images/for_gifs/synthesis.png", Tp=10, V_MAX=1, close=True, plot_size=6):
+    # name_synthesis = path_synthesis.split('/')[-3]
+    # name_synthesis_two_lines = '\n_scale'.join(name_synthesis.split('_seed')) # two lines
+    fig, ax = plt.subplots(1,2, gridspec_kw={'width_ratios': [30, 1]}, figsize=(8,8));
+    # img = np.rot90(slice_healthy_inpain2[coords_big[0]-Tp:coords_big[1]+Tp,coords_big[2]-Tp:coords_big[3]+Tp],1)
+    img = np.flipud(np.rot90(slice_healthy_inpain2,1))
+    ax[0].imshow(img, cmap='gray', vmin=0, vmax=V_MAX);
+    ax[0].text(2,10, GEN, fontsize=20, c='#7ccfa7')
+    # ax[0].text(2,5, name_synthesis_two_lines, fontsize=14, c='r')
+    ax[1].vlines(x=0, ymin=0, ymax=len_lesion, color='k');
+    ax[1].scatter(0,GEN, c='k', s=decreasing_sequence[-1]);
+    ax[1].set_ylim([0,decreasing_sequence[-1]]);
+    ax[1].text(0,0, 0, fontsize=20, c='k')
+    ax[1].text(0,decreasing_sequence[-1]-5, decreasing_sequence[-1], fontsize=20, c='k')
+    for axx in ax.ravel(): axx.axis('off')
+    fig.tight_layout();
+    plt.savefig(file_path);
+    if close:
+            plt.clf()
+
+def open_local_gif(location='images/for_gifs/synthesis.gif'):
+    """open gif from local file
+    from https://discuss.streamlit.io/t/how-to-show-local-gif-image/3408/9"""
+    file_ = open(location, "rb")
+    contents = file_.read()
+    data_url = base64.b64encode(contents).decode("utf-8")
+    file_.close()
+    return data_url

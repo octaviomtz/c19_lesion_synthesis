@@ -5,9 +5,7 @@
 # streamlit run main.py
 
 # TODO
-# continue with replace_with_nCA but first replace the 
-# default scan by one in housenfield units because slic
-# doesn't work with ints and right now scan values are 0-255
+# make sure superpixels2 produce the right boundaries
 from torch.functional import norm
 import streamlit as st
 from PIL import Image
@@ -16,13 +14,14 @@ from utils_load import (
     superpixels_applied,
     load_only_original_scans,
     normalize_scan,
-    from_scan_to_3channel,
+    original_slice_to_cannonical_view,
     from_scan_to_3channel2,
     scale_rect_coords_and_compare_nodule_coords,
     superpixels2,
     figures_zoom_and_superpixels,
     load_synthetic_texture,
     replace_with_nCA,
+    open_local_gif,
 )
 from utils import (
     coords_min_max_2D
@@ -33,6 +32,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 import streamlit as st
+import imageio
 from streamlit_drawable_canvas import st_canvas
 
 ## FUNCTIONS
@@ -61,12 +61,15 @@ scan_selection = a2.selectbox(
     'Select a scan with lesions',
     (14, 99))
 
+# SCAN_NAME = f'volume-covid19-A-{scan_selection:04d}'
 SCAN_NAME = f'volume-covid19-A-{scan_selection:04d}'
 
 # Load default scan and mask
 @st.cache(suppress_st_warning=True)
 def load_initially(SCAN_NAME):
-    scan_3D = np.load(f'images/scans/{SCAN_NAME}.npy')
+    # scan_3D = np.load(f'images/scans/{SCAN_NAME}_old.npy')
+    scan_3D = np.load(f'images/scans/{SCAN_NAME}.npz')
+    scan_3D = scan_3D.f.arr_0
     scan_mask_3D = np.load(f'images/masks/{SCAN_NAME}.npz')
     scan_mask_3D = scan_mask_3D.f.arr_0
     slices_with_lesions = np.where(np.sum(scan_mask_3D, (0,1))>20)[0] 
@@ -94,8 +97,7 @@ load_only_scans = c1.button('CT scans_only')
 load = c2.button('CT load')
 superpixels = c3.button('superpixels')
 test = st.button('test')
-st.write(st.session_state['coords'])
-
+st.write(np.min(st.session_state['scan']), np.max(st.session_state['scan']), st.session_state['coords'])
 
 img = st.sidebar.selectbox(
     'Select Image',
@@ -219,7 +221,7 @@ canvas_result = st_canvas(
     background_color=bg_color,
     # background_image=Image.open(bg_image) if bg_image else None,
     # background_image=Image.open('images/content-images/scan_default.png'),
-    background_image= from_scan_to_3channel(st.session_state['scan'], slice= st.session_state.ONLY_ONE_SLICE, normalize=False),
+    background_image= from_scan_to_3channel2(original_slice_to_cannonical_view(st.session_state['scan'])),
     update_streamlit=realtime_update,
     height= CANVA_HEIGHT,
     width = CANVA_WIDTH,
@@ -249,26 +251,44 @@ if len(canvas_result.json_data["objects"]) >= 1:
 
 if st.session_state['dist_coords_small']:  
     dist_small1, dist_small2, dist_small3 = st.beta_columns((1, 1, 1))
-    mask_slic, boundaries, segments = superpixels2(st.session_state['scan'], st.session_state['scan_mask'])
-    fig_zoom1, fig_zoom2, fig_zoom3 = figures_zoom_and_superpixels(st.session_state['scan'], st.session_state['scan_mask'], st.session_state['coords'], boundaries)
+    coords = st.session_state['coords']
+    scan_norm = original_slice_to_cannonical_view(st.session_state['scan'], to_0_255=False)
+    mask_slic, boundaries, segments = superpixels2(scan_norm[coords[0]: coords[1], coords[2]:coords[3]], st.session_state['scan_mask'][coords[0]: coords[1], coords[2]:coords[3]])
+    fig_zoom1, fig_zoom2, fig_zoom3 = figures_zoom_and_superpixels(original_slice_to_cannonical_view(st.session_state['scan']), st.session_state['scan_mask'], st.session_state['coords'], boundaries)
     dist_small1.pyplot(fig_zoom1)
     dist_small2.pyplot(fig_zoom2)
     dist_small3.pyplot(fig_zoom3)
+    # figXX, ax = plt.subplots(1,2)
+    # ax[0].imshow(scan_norm[coords[0]: coords[1], coords[2]:coords[3]])
+    # ax[1].imshow(boundaries[coords[0]: coords[1], coords[2]:coords[3]])
+    # st.pyplot(figXX)
+    # st.write(np.unique(st.session_state['scan_mask']))
 
 if test:
-    imB1, imB2 = st.beta_columns((1, 1))
-    figB1 = plt.figure()
-    imgB1 = from_scan_to_3channel(st.session_state['scan'], slice= st.session_state.ONLY_ONE_SLICE, normalize=False)
-    st.write(np.shape(imgB1))
-    plt.imshow(imgB1)
-    plt.imshow(st.session_state['scan_mask'], alpha=.3)
-    imB1.pyplot(figB1)
+    imB1, imB2 = st.beta_columns((1, 1))  
+    scan_norm = original_slice_to_cannonical_view(st.session_state['scan'], to_0_255=False, rotate=False, fliplr=False)
+    arrays_sequence, seq_idx = replace_with_nCA(scan_norm, SCAN_NAME, st.session_state.ONLY_ONE_SLICE, st.session_state['texture'])
+    # st.write(f'arrays_sequence={np.shape(arrays_sequence)}, decreasing_sequence={len(seq_idx)},{seq_idx[-5:]}')
     
-    arrays_sequence, images, seq_idx = replace_with_nCA(st.session_state['scan'], SCAN_NAME, st.session_state.ONLY_ONE_SLICE, st.session_state['texture'])
-    st.write(f'arrays_sequence={np.shape(arrays_sequence)}, images={np.shape(images)}, decreasing_sequence={len(seq_idx)},{seq_idx[-5:]}')
+    fig_syn = plt.figure()
+    text_idx = 10 
+    plt.text(20,20,text_idx, c='#7ccfa7', fontsize=20)
+    plt.imshow(original_slice_to_cannonical_view(arrays_sequence[text_idx], normalize_scan_hounsfield = False, to_0_255=False), cmap='gray')
+    plt.axis('off')
+    imB1.pyplot(fig_syn)
 
     fig_syn = plt.figure()
-    plt.imshow(arrays_sequence[10], cmap='gray')
+    plt.text(5,10,text_idx, c='#7ccfa7', fontsize=20)
+    coords = st.session_state['coords']
+    plt.imshow(original_slice_to_cannonical_view(arrays_sequence[text_idx], normalize_scan_hounsfield = False, to_0_255=False)[coords[0]: coords[1], coords[2]:coords[3]], cmap='gray')
     plt.axis('off')
-    plt.savefig('images/output-images/temp_syn.png')
-    st.pyplot(fig_syn)
+    imB2.pyplot(fig_syn)
+
+    imS1, imS2 = st.beta_columns((1, 1))
+    gif = open_local_gif(location=f'images/for_gifs/{SCAN_NAME}_{st.session_state["ONLY_ONE_SLICE"]}.gif')
+    imS1.markdown(
+        f'<img src="data:image/gif;base64,{gif}" alt="gif" width="80%">',
+        unsafe_allow_html=True,
+    )
+    
+    
