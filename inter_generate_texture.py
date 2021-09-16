@@ -99,11 +99,46 @@ bin_count, bin_lim = bin_info[0], bin_info[1]
 bin_lim = np.insert(bin_lim,0,0)
 noise_frames = []
 for i in bin_lim[::-1]:
-    noise_frames.append(scan_lesion>=i)
+    noise_frames.append((scan_lesion>=i) * 0.02) 
 fig, ax = plt.subplots(4,5,figsize=(12,8))
 for idx in range(20):
     ax.flat[idx].imshow(noise_frames[idx])
     ax.flat[idx].axis('off')
+#%%
+repetitions_per_frame1 = int(np.ceil(1000/np.shape(noise_frames)[0]))
+repetitions_per_frame2 = int(np.ceil(600/np.shape(noise_frames)[0]))
+repetitions_per_frame1, repetitions_per_frame2
+noise_frames_repeated1 = []
+noise_frames_repeated2 = []
+for n_frame in noise_frames:
+    for it in range(repetitions_per_frame1):
+        noise_frames_repeated1.append(n_frame)
+        if it <= repetitions_per_frame2:
+            noise_frames_repeated2.append(n_frame)
+
+
+#%%
+np.shape(noise_frames_repeated1), np.shape(noise_frames_repeated2)
+print(len(noise_frames))
+# fig, ax = plt.subplots(5,5)
+# for i in range(25):
+#   ax.flat[i].imshow(noise_frames[i])
+
+from scipy.ndimage import distance_transform_bf
+import math
+noise_dt = distance_transform_bf(noise_frames[-2])
+noise_dt = noise_dt / np.max(noise_dt)
+print(type(noise_dt))
+noise_dt = (1/(1+np.exp(-noise_dt*10)))
+plt.imshow(noise_dt)
+plt.colorbar()
+
+#%%
+a=np.linspace(0,1,100)
+b = 1/(1+np.exp(-a))
+c = 1/(1+np.exp(-a*10))
+plt.plot(a,b)
+plt.plot(a,c)
 
 
 #%% NCA =========
@@ -153,7 +188,7 @@ def to_rgb(x):
   return x[...,:3,:,:]+0.5
 #%%
 class VideoWriter:
-  def __init__(self, filename='_autoplay.mp4', fps=10.0, **kw): #XX fps=30.0
+  def __init__(self, filename='_autoplay.mp4', fps=20.0, **kw): #XX fps=30.0
     self.writer = None
     self.params = dict(filename=filename, fps=fps, **kw)
 
@@ -187,35 +222,41 @@ class VideoWriter:
 
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 #%%
-# from PIL import Image
-# import PIL
-# import torch
-# import numpy as np
-# h, w = 1080//2, 1920//2
-# mask = PIL.Image.new('L', (w, h))
-# draw = PIL.ImageDraw.Draw(mask)
-# font = PIL.ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', 300)
-# draw  = PIL.ImageDraw.Draw(mask)
-# draw.text((20, 100), 'COVID', fill=255, font=font, align='center')
-# noise = torch.tensor(np.float32(mask)/255.0*0.02)
-# plt.hist(np.asarray(noise.cpu().numpy()).flatten());
+
+# plt.imshow(noise_frames_repeated1[160])
+# img.shape
+
 #%%
 ca = torch.load('models/ca_lungs_covid2.pt')
 #%%
-h, w = 1080//2, 1920//2 # np.shape(noise_frames[-4])#
+h, w = 1080//4, 1920//4 # np.shape(noise_frames[-4])#
+noise = 0.5-0.5*torch.linspace(0, np.pi*2.0, w).cos()
+noise *= 0.02
 noise_temp = np.zeros((h,w))
+all_noise = np.ones((h,w))*.02
 hh, ww = np.shape(noise_frames[-4])
-noise_temp[100:100+hh, 100:100+ww] = noise_frames[-4]*.02
+# noise_temp[100:100+hh, 100:100+ww] = noise_frames[-4]*.02
 with VideoWriter('covid_x.mp4') as vid, torch.no_grad():
   x = torch.zeros(1, ca.chn, h, w)
-  for k in tnrange(1000, leave=False):
+  for k in tnrange(50, leave=False):
+    noise_temp[100:100+hh, 100:100+ww] = noise_dt*.02 #noise_frames_repeated1[160]
     x[:] = ca(x, noise=torch.tensor(noise_temp))
-  for k in tnrange(600, leave=False):
-    for k in range(10):
-      x[:] = ca(x, noise=torch.tensor(noise_temp))
-    img = to_rgb(x[0]).permute(1, 2, 0)[...,0].cpu()
-    vid.add(img)
+    # x[:] = ca(x)
+  for k in tnrange(200, leave=False):
+    for kk in range(5):
+      if k<10:
+        x[:] = ca(x)
+      else:
+        noise_temp[100:100+hh, 100:100+ww] = noise_dt*.02 #noise_frames_repeated1[260]
+        x[:] = ca(x, noise=torch.tensor(noise_temp))
+    img = to_rgb(x[0]).permute(1, 2, 0)[...,0].cpu() # these 2 row were idented left
+    vid.add(img) # these 2 row were idented left
 vid.show(loop=True)
+
+#%%
+plt.plot(noise.cpu().numpy())
+plt.imshow(noise_frames_repeated1[-1])
+
 
 # %%
 img = img.cpu().numpy()
