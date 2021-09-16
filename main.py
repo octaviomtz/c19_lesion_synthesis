@@ -53,15 +53,15 @@ st.session_state['dist_coords_small'] = False
 
 st.title('C19 Lesion Synthesis')
 
-a1, a2 = st.beta_columns((1, 1))
+a1, a2, a3, a4 = st.columns((1, 1, 1, 1))
 st.session_state.ONLY_ONE_SLICE = a1.selectbox(
     'Select a slice',
     (34, 17, 18, 19, 20, 21, 22, 30, 31, 32, 33, 34, 35, 36))
 scan_selection = a2.selectbox(
     'Select a scan with lesions',
     (14, 99))
+test = a3.button('test')
 
-# SCAN_NAME = f'volume-covid19-A-{scan_selection:04d}'
 SCAN_NAME = f'volume-covid19-A-{scan_selection:04d}'
 
 # Load default scan and mask
@@ -92,37 +92,16 @@ scan_3D, scan_mask_3D, st.session_state['texture'] = load_initially(SCAN_NAME)
 st.session_state['scan'], st.session_state['scan_mask'] = load_slice_initially(scan_3D, scan_mask_3D)
 st.session_state['coords'] = coords_min_max_2D(st.session_state['scan_mask'])
 
-c1, c2, c3, c4, _, _, _ = st.beta_columns((1, 1, 1, 1, 1, 1, 1))
-load_only_scans = c1.button('CT scans_only')
-load = c2.button('CT load')
-superpixels = c3.button('superpixels')
-test = st.button('test')
-st.write(np.min(st.session_state['scan']), np.max(st.session_state['scan']), st.session_state['coords'])
+c1, c2, c3, c4, _, _, _ = st.columns((1, 1, 1, 1, 1, 1, 1))
+
+
+# st.write(np.min(st.session_state['scan']), np.max(st.session_state['scan']), st.session_state['coords'])
 
 img = st.sidebar.selectbox(
     'Select Image',
     ('scan.npy', 'scan.npy')#,'amber.jpg', 'cat.png')
 )
 
-# style_name = st.sidebar.selectbox(
-#     'Select Style',
-#     ('candy', 'mosaic', 'rain_princess', 'udnie')
-# )
-
-# model= "saved_models/" + style_name + ".pth"
-# input_image = "images/content-images/" + img 
-# output_image = "images/output-images/" + style_name + "-" + img
-
-# st.write('### Example scan:')
-# image_scan = np.load(input_image)
-# fig0 = plt.figure()
-# plt.imshow(np.rot90(normalize_scan(image_scan[...,34]),-1), cmap='gray')
-# plt.axis(False)
-# st.pyplot(fig0, width=400) 
-
-
-
- 
 ## To save the scan as an image
 # import imageio 
 # aaa = np.rot90(normalize_scan(np.load(input_image)[...,ONLY_ONE_SLICE]),-1)
@@ -132,75 +111,6 @@ img = st.sidebar.selectbox(
 # imageio.imwrite('images/content-images/aaa.png', aaa)
 # aaa.save('images/content-images/aaa.png')
 
-
-
-if load_only_scans:
-    scan, scan_mask = load_only_original_scans(SCAN_NAME)
-    st.session_state.scan = scan 
-    st.session_state.scan_mask = scan_mask
-    scan_plot = from_scan_to_3channel(scan, slice= st.session_state.ONLY_ONE_SLICE, normalize=True, rotate=-1)
-
-    fig_only_scans = plt.figure()
-    plt.imshow(scan_plot)
-    st.pyplot(fig_only_scans)
-
-
-if load:
-    scan, scan_mask, loader_lesions, texture = load_synthetic_lesions_scans_and__individual_lesions(SCAN_NAME)
-    st.session_state.scan = normalize_scan(scan)    
-    st.session_state.scan_mask = scan_mask
-    st.session_state.loader_lesions = loader_lesions
-    st.session_state.texture = texture
-
-    st.write(f'scan = {np.shape(scan), np.min(scan), np.max(scan)}')
-    st.write(f'scan_mask = {np.shape(scan_mask), np.min(scan_mask), np.max(scan_mask)}')
-    st.write(type(loader_lesions))
-    st.image(np.rot90(st.session_state.scan[...,st.session_state.ONLY_ONE_SLICE],-1))
-    
-    # np.save('images/scans/scan.npy', scan_mask)
-    # np.savez_compressed('images/scans/scan_mask.npz', scan_mask)
-
-if superpixels: 
-    superpixels_args = superpixels_applied(st.session_state.loader_lesions, st.session_state.ONLY_ONE_SLICE, SEED_VALUE=1)
-    print(len(superpixels_args)) 
-    img_lesions, mask_slic, boundaries_plot, segments, segments_sizes, coords_big, idx_mini_batch, numSegments = superpixels_args
-    st.write(coords_big)
-    scan = st.session_state.scan
-    scan_mask = st.session_state.scan_mask
-    
-    st.write(f'img_lesions = {np.shape(img_lesions), np.min(img_lesions), np.max(img_lesions)}')
-    
-    ct1, ct2, ct3, ct4 = st.beta_columns((1, 1, 1, 1))
-    ct1.title('c1')
-    fig1 = plt.figure()
-    plt.imshow(np.rot90(scan[...,coords_big[-1]],-1), cmap='gray')
-    plt.imshow(np.rot90(scan_mask[...,coords_big[-1]],-1), alpha=.3)
-    ct1.pyplot(fig1)
-    ct2.title('c2')
-    fig2 = plt.figure()
-    plt.imshow(np.rot90(scan[coords_big[0]-TRESH_P:coords_big[1]+TRESH_P,coords_big[2]-TRESH_P:coords_big[3]+TRESH_P,coords_big[-1]],-1), cmap='gray')
-    plt.imshow(np.rot90(scan_mask[coords_big[0]-TRESH_P:coords_big[1]+TRESH_P,coords_big[2]-TRESH_P:coords_big[3]+TRESH_P,coords_big[-1]],-1), alpha=.3)
-    ct2.pyplot(fig2)
-    ct3.title('c3')
-    fig3 = plt.figure()
-    plt.imshow(np.rot90(img_lesions[0],-1),cmap='gray')
-    ct3.pyplot(fig3)
-    ct4.title('c4')
-    fig4 = plt.figure()
-    plt.imshow(np.rot90(boundaries_plot*mask_slic,-1), vmax=1, cmap='gray')
-    ct4.pyplot(fig4) 
-
-    st.write(coords_big)
-    # canvas_result.realtime_update = False
-
-# if clicked:
-#     #model = style.load_model(model)
-#     #style.stylize(model, input_image, output_image)
-
-#     st.write('### Output image:')
-#     image = Image.open(output_image)
-#     st.image(image, width=400)
-
 ########## DRAWABLE
 
 # Specify canvas parameters in application
@@ -208,10 +118,17 @@ stroke_width = st.sidebar.slider("Stroke width: ", 1, 25, 3)
 stroke_color = st.sidebar.color_picker("Stroke color hex: ") 
 bg_color = st.sidebar.color_picker("Background color hex: ", "#eee")
 bg_image = st.sidebar.file_uploader("Background image:", type=["png", "jpg"])
-# drawing_mode = st.sidebar.selectbox(
-#     "Drawing tool:", ("rect","freedraw", "line", "circle", "transform")
-# )
+drawing_mode = st.sidebar.selectbox(
+    "Drawing tool:", ("rect","freedraw", "line", "circle", "transform")
+)
 realtime_update = st.sidebar.checkbox("Update in realtime", True)
+
+def rect_or_transform(rect = True):
+    rect_or_trans = 'transform'
+    if rect:
+        rect_or_trans = 'rect'
+    return rect_or_trans
+    
 
 # Create a canvas component
 canvas_result = st_canvas(
@@ -225,32 +142,43 @@ canvas_result = st_canvas(
     update_streamlit=realtime_update,
     height= CANVA_HEIGHT,
     width = CANVA_WIDTH,
-    # drawing_mode=drawing_mode,
-    drawing_mode= 'rect', 
+    drawing_mode=drawing_mode,
+    # drawing_mode= 'rect', 
+    # drawing_mode= rect_or_transform(), 
     key="canvas",
 )
 
 
-
+# with st.form("my_form",clear_on_submit=True):
+#     st.write("Inside the form")
+#     submitted = st.form_submit_button("Submit")
+#     slider_val = st.slider("Form slider")
+#     checkbox_val = st.checkbox("Form checkbox")
+#     if submitted:
+#         st.write("slider", slider_val, "checkbox", checkbox_val)
 
 # Do something interesting with the image data and paths
 # if canvas_result.image_data is not None:
 #     st.image(canvas_result.image_data)
 if len(canvas_result.json_data["objects"]) >= 1:
+    rect_or_transform(rect = False)
     if len(canvas_result.json_data["objects"]) == 1:
-        canvas_result.drawing_mode = 'transform'
+        canvas_result.drawing_mode = 'line'
         # canvas_result.json_data["objects"].pop(0)   
-    # st.write(canvas_result.json_data)
+    if  len(canvas_result.json_data["objects"]) == 3:
+        canvas_result.background_image = from_scan_to_3channel2(original_slice_to_cannonical_view(st.session_state['scan']))
+        # canvas_result.json_data.clear()
+        canvas_result.height=20
+
     res = canvas_result.json_data["objects"][0]
-    # canva_shape0, canva_shape1 = np.shape(st.session_state['scan'])
-    # scale_y = canva_shape0/CANVA_HEIGHT
-    # scale_x = canva_shape1/CANVA_WIDTH
     coords_scaled, dist_coords, st.session_state['dist_coords_small'] = scale_rect_coords_and_compare_nodule_coords(st.session_state['scan'], canvas_result.json_data["objects"][0], st.session_state['coords'], CANVA_HEIGHT=CANVA_HEIGHT, CANVA_WIDTH=CANVA_WIDTH)
-    st.write(coords_scaled, st.session_state['coords'], dist_coords)
-    st.dataframe(pd.json_normalize(canvas_result.json_data["objects"]))
+    # st.write(coords_scaled, st.session_state['coords'], dist_coords)
+    df_coords = pd.DataFrame(pd.json_normalize(canvas_result.json_data["objects"]))
+    df_coords = df_coords[['left', 'top', 'width', 'height']]
+    st.dataframe(df_coords)
 
 if st.session_state['dist_coords_small']:  
-    dist_small1, dist_small2, dist_small3 = st.beta_columns((1, 1, 1))
+    dist_small1, dist_small2, dist_small3 = st.columns((1, 1, 1))
     coords = st.session_state['coords']
     scan_norm = original_slice_to_cannonical_view(st.session_state['scan'], to_0_255=False)
     mask_slic, boundaries, segments = superpixels2(scan_norm[coords[0]: coords[1], coords[2]:coords[3]], st.session_state['scan_mask'][coords[0]: coords[1], coords[2]:coords[3]])
@@ -265,30 +193,32 @@ if st.session_state['dist_coords_small']:
     # st.write(np.unique(st.session_state['scan_mask']))
 
 if test:
-    imB1, imB2 = st.beta_columns((1, 1))  
-    scan_norm = original_slice_to_cannonical_view(st.session_state['scan'], to_0_255=False, rotate=False, fliplr=False)
-    arrays_sequence, seq_idx = replace_with_nCA(scan_norm, SCAN_NAME, st.session_state.ONLY_ONE_SLICE, st.session_state['texture'])
-    # st.write(f'arrays_sequence={np.shape(arrays_sequence)}, decreasing_sequence={len(seq_idx)},{seq_idx[-5:]}')
-    
-    fig_syn = plt.figure()
-    text_idx = 10 
-    plt.text(20,20,text_idx, c='#7ccfa7', fontsize=20)
-    plt.imshow(original_slice_to_cannonical_view(arrays_sequence[text_idx], normalize_scan_hounsfield = False, to_0_255=False), cmap='gray')
-    plt.axis('off')
-    imB1.pyplot(fig_syn)
+    with st.spinner('Replacing lesion with cellular automata....'):
+        slider_gen = st.slider("synthesis generation", min_value=0, max_value=40, value=5)
+        imB1, imB2 = st.columns((1, 1))  
+        scan_norm = original_slice_to_cannonical_view(st.session_state['scan'], to_0_255=False, rotate=False, fliplr=False)
+        arrays_sequence, seq_idx = replace_with_nCA(scan_norm, SCAN_NAME, st.session_state.ONLY_ONE_SLICE, st.session_state['texture'])
+        # st.write(f'arrays_sequence={np.shape(arrays_sequence)}, decreasing_sequence={len(seq_idx)},{seq_idx[-5:]}')
+        st.write(f'arrays_sequence={np.shape(arrays_sequence)}')  
+        fig_syn = plt.figure()
+        text_idx = slider_gen
+        plt.text(20,20,text_idx, c='#7ccfa7', fontsize=20)
+        plt.imshow(original_slice_to_cannonical_view(arrays_sequence[text_idx], normalize_scan_hounsfield = False, to_0_255=False), cmap='gray')
+        plt.axis('off')
+        imB1.pyplot(fig_syn)
 
-    fig_syn = plt.figure()
-    plt.text(5,10,text_idx, c='#7ccfa7', fontsize=20)
-    coords = st.session_state['coords']
-    plt.imshow(original_slice_to_cannonical_view(arrays_sequence[text_idx], normalize_scan_hounsfield = False, to_0_255=False)[coords[0]: coords[1], coords[2]:coords[3]], cmap='gray')
-    plt.axis('off')
-    imB2.pyplot(fig_syn)
+        fig_syn = plt.figure()
+        plt.text(5,10,text_idx, c='#7ccfa7', fontsize=20)
+        coords = st.session_state['coords']
+        plt.imshow(original_slice_to_cannonical_view(arrays_sequence[text_idx], normalize_scan_hounsfield = False, to_0_255=False)[coords[0]: coords[1], coords[2]:coords[3]], cmap='gray')
+        plt.axis('off')
+        imB2.pyplot(fig_syn)
 
-    imS1, imS2 = st.beta_columns((1, 1))
-    gif = open_local_gif(location=f'images/for_gifs/{SCAN_NAME}_{st.session_state["ONLY_ONE_SLICE"]}.gif')
-    imS1.markdown(
-        f'<img src="data:image/gif;base64,{gif}" alt="gif" width="80%">',
-        unsafe_allow_html=True,
-    )
+        imS1, imS2 = st.columns((10, 1))
+        gif = open_local_gif(location=f'images/for_gifs/{SCAN_NAME}_{st.session_state["ONLY_ONE_SLICE"]}.gif')
+        imS1.markdown(
+            f'<img src="data:image/gif;base64,{gif}" alt="gif" width="80%">',
+            unsafe_allow_html=True,
+        )
     
     

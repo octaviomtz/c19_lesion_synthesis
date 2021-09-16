@@ -377,7 +377,7 @@ def figures_zoom_and_superpixels(scan, mask, coords, boundaries, offset = 5):
     plt.axis('off')
     return fig_zoom1, fig_zoom2, fig_zoom3
 
-@st.cache(suppress_st_warning=True)
+# @st.cache(suppress_st_warning=True)
 def load_synthetic_texture(path_synthesis = '/content/drive/My Drive/Datasets/covid19/results/cea_synthesis/patient0/'):
     texture_orig = np.load(f'{path_synthesis}texture.npy.npz')
     texture_orig = texture_orig.f.arr_0
@@ -389,13 +389,16 @@ def replace_with_nCA(scan, SCAN_NAME, SLICE, texture, mask_outer_ring = False, P
     path_parent = '/content/drive/My Drive/Datasets/covid19/COVID-19-20_augs_cea/'
     path_synthesis_ = f'{path_parent}CeA_BASE_grow=1_bg=-1.00_step=-1.0_scale=-1.0_seed=1.0_ch0_1=-1_ch1_16=-1_ali_thr=0.1/'
     path_synthesis = f'{path_synthesis_}{SCAN_NAME}/'
+    # path_synthesis = '/content/drive/My Drive/repositories/cellular_automata/Growing-Neural-Cellular-Automata/temp_delete/volume-covid19-A-0014/'
     lesions_all, coords_all, masks_all, names_all, loss_all = read_cea_aug_slice2(path_synthesis, SLICE=SLICE)
     V_MAX = np.max(scan_slice)
     slice_healthy_inpain = pseudo_healthy_with_texture(scan_slice, lesions_all, coords_all, masks_all, names_all, texture)
     decreasing_sequence = get_decreasing_sequence(255, splits= 20) 
+    # decreasing_sequence = np.arange(0,30)
     arrays_sequence = []
     images=[]
     mse_gen = []
+    st.write(np.max(scan), np.max(texture), np.max(lesions_all[0]))
     for GEN in decreasing_sequence:
 
         slice_healthy_inpain2 = copy(slice_healthy_inpain)

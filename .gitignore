@@ -8,3 +8,5 @@ interactive.py
 ngrok*
 images/output-images/*
 images/for_gifs/*
+models/*
+*.mp4
