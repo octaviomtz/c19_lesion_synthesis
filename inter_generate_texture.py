@@ -19,7 +19,7 @@ from skimage.segmentation import mark_boundaries
 import torch
 from copy import copy
 from scipy.ndimage import distance_transform_bf
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 import torchvision.models as models
 import torch
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
@@ -239,28 +239,30 @@ def to_rgb(x):
 #%%
 # torch.set_default_tensor_type('torch.cuda.FloatTensor')
 # ca = torch.load('models/ca_lungs_covid2.pt')
-ca1 = torch.load('models/init_lungs.pt')
-ca2 = torch.load('models/init_lungs_covid_higher_2.5.pt')
+ca1 = torch.load('models/init_lungs.pt').cpu()
+ca2 = torch.load('models/init_lungs_covid_higher_2.5.pt').cpu()
 
 
 #%% MASKS REPEATED ACROSS ALL SYNTHESIS
 len_masks = np.shape(superpix_added)[0]
 len_synthesis = 400
-masks_repeated = []
-idxs = []
+masks_repeated_ = []
+idxs_ = []
 for i in range(len_masks):
     for j in range((len_synthesis//(len_masks*2))):
-        masks_repeated.append(superpix_added[i])
-        idxs.append(i)
-for i in range(len_masks):
-    if i==0: continue
-    for j in range((len_synthesis//(len_masks*2))):
-        masks_repeated.append(superpix_added[-i])
-        idxs.append(-i)
-for j in range((len_synthesis//(len_masks*2))):
-    masks_repeated.append(np.zeros_like(superpix_added[0]))
-    idxs.append(-i)
-np.asarray(idxs), len(idxs)
+        masks_repeated_.append(superpix_added[i])
+        idxs_.append(i)
+masks_repeated = masks_repeated_ + masks_repeated_[::-1]
+idxs = idxs_ + idxs_[::-1]
+# for i in range(len_masks):
+#     if i==0: continue
+#     for j in range((len_synthesis//(len_masks*2))):
+#         masks_repeated.append(superpix_added[-i])
+#         idxs.append(-i)
+# for j in range((len_synthesis//(len_masks*2))):
+#     masks_repeated.append(np.zeros_like(superpix_added[0]))
+#     idxs.append(-i)
+plt.plot(idxs)
 
 #%% GRAFTING
 H, W = 80, 80 
@@ -275,13 +277,11 @@ with torch.no_grad():
     ii = [i%100 if i%100 < len(superpix_added) else 0][0]
     mask[20:20+hh, 20:20+ww] = torch.tensor(masks_repeated[i]).clone().detach()
     masks_list.append(mask)
-    for k in range(48):
+    for k in range(8): #48
       x1, x2 = ca1(x), ca2(x)
       x = x1 + (x2-x1)*mask
-      # x = x1 + (x2-x1)*mask_changing
       # x = x1*(1-mask) + x2*(mask)
-      # x = x1
-    img = to_rgb(x[0]).permute(1, 2, 0)[...,0].clone().detach().cpu().numpy()
+    img = to_rgb(x[0]).permute(1, 2, 0)[...,0].clone().numpy()#detach().cpu().numpy()
     # vid.add(zoom(img, 2))
     imgs.append(img)
 
@@ -297,6 +297,30 @@ for i in range(72):
     ax.flat[i].axis('off')
 ax.flat[i].imshow(masks_list[ii].cpu().numpy())
 fig.tight_layout()
+
+#%%
+scan_norm_patch = copy(scan_norm)
+mm = masks_list[200][20:20+hh, 20:20+ww]
+mm_y, mm_x = np.where(mm>0)
+scan_norm_patch[mm_y+coords[0], mm_x+coords[2]] = imgs[200][mm_y+20, mm_x+20]
+sp=10
+# scan_norm_patch[coords[0]:coords[1],coords[2]:coords[3]] = img[20:20+hh, 20:20+ww]
+fig, ax = plt.subplots(2,3, figsize=(12,8))
+ax[0,0].imshow(scan_norm)
+ax[0,1].imshow(scan_mask)
+ax[1,0].imshow(scan_norm[coords[0]:coords[1],coords[2]:coords[3]])
+ax[1,1].imshow(scan_mask[coords[0]:coords[1],coords[2]:coords[3]])
+ax[0,2].imshow(scan_norm_patch)
+ax[1,2].imshow(scan_norm_patch[coords[0]-sp:coords[1]+sp,coords[2]-sp:coords[3]+sp])
+
+#%%
+scan_norm_patch = copy(scan_norm)
+mm = masks_list[200][20:20+hh, 20:20+ww]
+mm_y, mm_x = np.where(mm>0)
+
+
+
+plt.imshow(scan_norm_patch)
 
 
 #%%
