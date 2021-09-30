@@ -160,7 +160,7 @@ canvas_result = st_canvas(
 # Do something interesting with the image data and paths
 # if canvas_result.image_data is not None:
 #     st.image(canvas_result.image_data)
-if len(canvas_result.json_data["objects"]) >= 1:
+if canvas_result is not None and len(canvas_result.json_data["objects"]) >= 1:
     rect_or_transform(rect = False)
     if len(canvas_result.json_data["objects"]) == 1:
         canvas_result.drawing_mode = 'line'

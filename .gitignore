@@ -3,10 +3,11 @@ __pycache__/
 *.ipynb
 ngrok*
 interactive/
-scans/
 interactive.py
 ngrok*
 images/output-images/*
 images/for_gifs/*
 models/*
 *.mp4
+images/scans/scan.npy
+images/scans/*old*
