@@ -78,7 +78,7 @@ def load_initially(SCAN_NAME):
     # fig = plt.figure()
     # plt.imshow(st.session_state['scan'])
     # st.pyplot(fig)
-    texture = load_synthetic_texture()
+    texture = load_synthetic_texture(path_synthesis = 'images/textures/')
     return scan_3D, scan_mask_3D, texture
 
 @st.cache(suppress_st_warning=True)

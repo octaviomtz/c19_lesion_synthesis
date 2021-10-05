@@ -27,12 +27,12 @@ from pathlib import Path
 
 import imageio
 import os
-import moviepy.editor as mvp
+#import moviepy.editor as mvp
 from pathlib import Path
 from copy import copy
 from scipy.ndimage import binary_fill_holes
 from skimage.restoration import inpaint
-import cv2
+# import cv2
 
 from monai.transforms.transform import MapTransform
 from monai.config import KeysCollection
@@ -106,15 +106,15 @@ def get_decreasing_sequence(total_gen = 256, splits= 10, plot = False):
 
 
 
-def blur_masked_image(image, kernel_blur = (3,3)):
-    '''https://answers.opencv.org/question/3031/smoothing-with-a-mask/'''
-    mask_for_blur = image >0
-    image[mask_for_blur == 0] = 0
-    blurred_image = cv2.blur(image,kernel_blur)
-    blurred_mask = cv2.blur(mask_for_blur.astype(float),kernel_blur)
-    result = blurred_image / blurred_mask
-    result = np.nan_to_num(result*mask_for_blur, nan=0)
-    return result
+# def blur_masked_image(image, kernel_blur = (3,3)):
+#     '''https://answers.opencv.org/question/3031/smoothing-with-a-mask/'''
+#     mask_for_blur = image >0
+#     image[mask_for_blur == 0] = 0
+#     blurred_image = cv2.blur(image,kernel_blur)
+#     blurred_mask = cv2.blur(mask_for_blur.astype(float),kernel_blur)
+#     result = blurred_image / blurred_mask
+#     result = np.nan_to_num(result*mask_for_blur, nan=0)
+#     return result
 
 def pseudo_healthy_with_texture(scan_slice, lesions_all, coords_all, masks_all, names_all, texture, iter_erosion_dilation = 1, plot= False, Tp=20):
     '''1. Read all clusters' masks in a lesion (a cluster is a part of a lesion obtained with slic) 

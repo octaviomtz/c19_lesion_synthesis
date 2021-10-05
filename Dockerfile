@@ -14,13 +14,16 @@ enableCORS = false\n\
 
 # expose default port for streamlit
 EXPOSE 8501
+ 
+# update pip
+RUN pip3 install --upgrade pip
 
 # copy and install packages
-COPY requirements.txt ./requirements.txt
-RUN pip3 install -r requirements.txt
+COPY requirements_docker.txt ./requirements_docker.txt
+RUN pip3 install -r requirements_docker.txt
 
 #copy the rest
 COPY . .
 
 #run app
-CMD stramlit run main.py
+CMD streamlit run main.py
