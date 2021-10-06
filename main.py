@@ -6,26 +6,34 @@
 
 # TODO
 # make sure superpixels2 produce the right boundaries
-from torch.functional import norm
+# from torch.functional import norm
 import streamlit as st
 from PIL import Image
-from utils_load import (
-    load_synthetic_lesions_scans_and__individual_lesions,
-    superpixels_applied,
-    load_only_original_scans,
-    normalize_scan,
+
+from utils_minimum_for_api import (
     original_slice_to_cannonical_view,
     from_scan_to_3channel2,
     scale_rect_coords_and_compare_nodule_coords,
     superpixels2,
     figures_zoom_and_superpixels,
     load_synthetic_texture,
-    replace_with_nCA,
+    # replace_with_nCA,
     open_local_gif,
-)
-from utils import (
     coords_min_max_2D
 )
+# from utils_load import (
+#     original_slice_to_cannonical_view,
+#     from_scan_to_3channel2,
+#     scale_rect_coords_and_compare_nodule_coords,
+#     superpixels2,
+#     figures_zoom_and_superpixels,
+#     load_synthetic_texture,
+#     replace_with_nCA,
+#     open_local_gif,
+# )
+# from utils import (
+#     coords_min_max_2D
+# )
 import numpy as np
 import matplotlib.pyplot as plt
 
