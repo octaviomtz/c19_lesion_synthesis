@@ -6,6 +6,41 @@ To work with docker in windows, we need to change to WSL2 (ubuntu & git at the m
 wsl -l -v # to check versions
 wsl -s docker-desktop # to change version
 ```
+
+## Working method
+Based on https://towardsdatascience.com/deploy-a-dockerized-streamlit-app-to-gcp-with-compute-engine-9b82fd2cdd28   
+Do not expose a specific PORT in Dockerfile but call the streamlit application like this:
+```dockerfile
+CMD streamlit run app.py --server.port $PORT
+``` 
+Then build the image and run the app on port 8080 inside the container and port 80 outside of the container.
+```bash
+docker build . -t st_c19_tds
+docker run -p 80:8080 -e PORT=8080 st_c19_tds
+```
+Then, in gcloud  console submit the build to the GCP contrainer registry:
+```bash
+gcloud builds submit --tag gcr.io/<project-name>/my-app
+```
+Then, on GCP, in compute engine create a new VM instance.   
+1. Select the checkbox “Deploy a container image to this VM instance.”   
+1. Allow HTTP traffic by clicking the box   
+
+To deploy, go to gcloud console and run 
+```bash
+docker run -p 80:8080 -e PORT=8080 gcr.io/<project-name>/my-app
+```
+Back on GCP we select the VM instance we created and open a SSH in the browser window (dropdown menu next SSH)
+and we run the the docker container
+```bash
+# we are in the SSH console open in GCP
+docker run -p 80:8080 -e PORT=8080 gcr.io/<project-name>/my-app
+```
+We can find the external IP of the app in the VM instance information. 
+
+
+## Previous method
+
 To build and run the docker image run:
 ```bash
 docker build . -t api_name
@@ -32,5 +67,5 @@ docker push gcr.io/<GCP-project>/<name-of-the-image:tag>
 ```
 
 For more info
-https://www.youtube.com/watch?v=s46l_PmXBAQ
+https://www.youtube.com/watch?v=s46l_PmXBAQ   
 https://www.youtube.com/watch?v=3OP-q55hOUI

@@ -13,7 +13,7 @@ enableCORS = false\n\
 " > /root/.streamlit/config.toml'
 
 # expose default port for streamlit
-EXPOSE 8501
+#EXPOSE 8501
  
 # update pip
 RUN pip3 install --upgrade pip
@@ -26,4 +26,4 @@ RUN pip3 install -r requirements_docker.txt
 COPY . .
 
 #run app
-CMD streamlit run main.py
+CMD streamlit run app.py --server.port $PORT
