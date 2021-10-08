@@ -1,4 +1,6 @@
 # streamlit api for lesions synthesis
+We create a docker image that can be used in the google cloud platform
+![c19_api_preview](/github_images/c19_api_preview.jpeg?raw=true)
 
 ## Notes:
 To work with docker in windows, we need to change to WSL2 (ubuntu & git at the moment are installed for WSL1). To do this, first open powershell and check the WSL versions and then change the version.

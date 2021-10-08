@@ -166,24 +166,23 @@ canvas_result = st_canvas(
 #         st.write("slider", slider_val, "checkbox", checkbox_val)
 
 # Do something interesting with the image data and paths
-# if canvas_result.image_data is not None:
-#     st.image(canvas_result.image_data)
-if canvas_result is not None and len(canvas_result.json_data["objects"]) >= 1:
-    rect_or_transform(rect = False)
-    if len(canvas_result.json_data["objects"]) == 1:
-        canvas_result.drawing_mode = 'line'
-        # canvas_result.json_data["objects"].pop(0)   
-    if  len(canvas_result.json_data["objects"]) == 3:
-        canvas_result.background_image = from_scan_to_3channel2(original_slice_to_cannonical_view(st.session_state['scan']))
-        # canvas_result.json_data.clear()
-        canvas_result.height=20
+if 'canvas_result' in locals() and canvas_result.json_data is not None:
+    if len(canvas_result.json_data["objects"]) >= 1:  
+        rect_or_transform(rect = False)
+        if len(canvas_result.json_data["objects"]) == 1:
+            canvas_result.drawing_mode = 'line'
+            # canvas_result.json_data["objects"].pop(0)   
+        if  len(canvas_result.json_data["objects"]) == 3:
+            canvas_result.background_image = from_scan_to_3channel2(original_slice_to_cannonical_view(st.session_state['scan']))
+            # canvas_result.json_data.clear()
+            canvas_result.height=20
 
-    res = canvas_result.json_data["objects"][0]
-    coords_scaled, dist_coords, st.session_state['dist_coords_small'] = scale_rect_coords_and_compare_nodule_coords(st.session_state['scan'], canvas_result.json_data["objects"][0], st.session_state['coords'], CANVA_HEIGHT=CANVA_HEIGHT, CANVA_WIDTH=CANVA_WIDTH)
-    # st.write(coords_scaled, st.session_state['coords'], dist_coords)
-    df_coords = pd.DataFrame(pd.json_normalize(canvas_result.json_data["objects"]))
-    df_coords = df_coords[['left', 'top', 'width', 'height']]
-    st.dataframe(df_coords)
+        res = canvas_result.json_data["objects"][0]
+        coords_scaled, dist_coords, st.session_state['dist_coords_small'] = scale_rect_coords_and_compare_nodule_coords(st.session_state['scan'], canvas_result.json_data["objects"][0], st.session_state['coords'], CANVA_HEIGHT=CANVA_HEIGHT, CANVA_WIDTH=CANVA_WIDTH)
+        # st.write(coords_scaled, st.session_state['coords'], dist_coords)
+        df_coords = pd.DataFrame(pd.json_normalize(canvas_result.json_data["objects"]))
+        df_coords = df_coords[['left', 'top', 'width', 'height']]
+        st.dataframe(df_coords)
 
 if st.session_state['dist_coords_small']:  
     dist_small1, dist_small2, dist_small3 = st.columns((1, 1, 1))
