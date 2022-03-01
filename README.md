@@ -68,6 +68,9 @@ docker push gcr.io/<GCP-project>/<name-of-the-image:tag>
 # docker push gcr.io/st-lung-lesions-v0/st-lung-lesions-v00:latest #example
 ```
 
+## Local development
+'/content/drive/MyDrive/repositories/streamlit/c19_lesion_synthesis/streamlit_from_colab'
+
 For more info
 https://www.youtube.com/watch?v=s46l_PmXBAQ   
 https://www.youtube.com/watch?v=3OP-q55hOUI
