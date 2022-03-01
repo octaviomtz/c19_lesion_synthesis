@@ -4,9 +4,6 @@
 # pip install torch torchvision
 # streamlit run main.py
 
-# TODO
-# make sure superpixels2 produce the right boundaries
-# from torch.functional import norm
 import streamlit as st
 from PIL import Image
 
@@ -17,23 +14,10 @@ from utils_minimum_for_api import (
     superpixels2,
     figures_zoom_and_superpixels,
     load_synthetic_texture,
-    # replace_with_nCA,
     open_local_gif,
     coords_min_max_2D
 )
-# from utils_load import (
-#     original_slice_to_cannonical_view,
-#     from_scan_to_3channel2,
-#     scale_rect_coords_and_compare_nodule_coords,
-#     superpixels2,
-#     figures_zoom_and_superpixels,
-#     load_synthetic_texture,
-#     replace_with_nCA,
-#     open_local_gif,
-# )
-# from utils import (
-#     coords_min_max_2D
-# )
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -43,10 +27,6 @@ import streamlit as st
 import imageio
 from streamlit_drawable_canvas import st_canvas
 
-## FUNCTIONS
-
-
-## ARGUMENTS
 CANVA_HEIGHT = 400
 CANVA_WIDTH = 400
 SEED_VALUE = 1 
@@ -55,9 +35,6 @@ THRESH_DIST = 10
 
 st.session_state['dist_coords_small'] = False
 
-# st.set_page_config(layout="wide") 
-# # import style
-# # use https://github.com/andfanilo/streamlit-drawable-canvas
 
 st.title('C19 Lesion Synthesis')
 
@@ -83,9 +60,6 @@ def load_initially(SCAN_NAME):
     slices_with_lesions = np.where(np.sum(scan_mask_3D, (0,1))>20)[0] 
     # st.write(slices_with_lesions, np.min(st.session_state['scan']),np.max(st.session_state['scan']))
     
-    # fig = plt.figure()
-    # plt.imshow(st.session_state['scan'])
-    # st.pyplot(fig)
     texture = load_synthetic_texture(path_synthesis = 'images/textures/')
     return scan_3D, scan_mask_3D, texture
 
@@ -103,7 +77,6 @@ st.session_state['coords'] = coords_min_max_2D(st.session_state['scan_mask'])
 c1, c2, c3, c4, _, _, _ = st.columns((1, 1, 1, 1, 1, 1, 1))
 
 
-# st.write(np.min(st.session_state['scan']), np.max(st.session_state['scan']), st.session_state['coords'])
 
 img = st.sidebar.selectbox(
     'Select Image',
@@ -157,14 +130,6 @@ canvas_result = st_canvas(
 )
 
 
-# with st.form("my_form",clear_on_submit=True):
-#     st.write("Inside the form")
-#     submitted = st.form_submit_button("Submit")
-#     slider_val = st.slider("Form slider")
-#     checkbox_val = st.checkbox("Form checkbox")
-#     if submitted:
-#         st.write("slider", slider_val, "checkbox", checkbox_val)
-
 # Do something interesting with the image data and paths
 if 'canvas_result' in locals() and canvas_result.json_data is not None:
     if len(canvas_result.json_data["objects"]) >= 1:  
@@ -193,11 +158,6 @@ if st.session_state['dist_coords_small']:
     dist_small1.pyplot(fig_zoom1)
     dist_small2.pyplot(fig_zoom2)
     dist_small3.pyplot(fig_zoom3)
-    # figXX, ax = plt.subplots(1,2)
-    # ax[0].imshow(scan_norm[coords[0]: coords[1], coords[2]:coords[3]])
-    # ax[1].imshow(boundaries[coords[0]: coords[1], coords[2]:coords[3]])
-    # st.pyplot(figXX)
-    # st.write(np.unique(st.session_state['scan_mask']))
 
 if test:
     with st.spinner('Replacing lesion with cellular automata....'):
